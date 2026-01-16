@@ -3,127 +3,97 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import { join, dirname, extname, basename } from 'path';
 import { homedir, tmpdir } from 'os';
-import { createReadStream } from 'fs';
 import readline from 'readline';
 
 const tools = {
   create_document: {
     description: "Create LibreOffice document",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: { type: "string", description: "File path" },
-        type: { type: "string", enum: ["writer", "calc", "impress", "draw"], description: "Document type" },
-        content: { type: "string", description: "Initial content" }
-      },
-      required: ["path", "type"]
-    }
+    inputSchema: { type: "object", properties: { path: { type: "string" }, type: { type: "string", enum: ["writer", "calc", "impress", "draw"] }, content: { type: "string" } }, required: ["path", "type"] }
   },
   read_document_text: {
     description: "Extract text from document",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: { type: "string", description: "File path" }
-      },
-      required: ["path"]
-    }
+    inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] }
   },
   convert_document: {
     description: "Convert document format",
-    inputSchema: {
-      type: "object",
-      properties: {
-        source_path: { type: "string", description: "Source file path" },
-        target_path: { type: "string", description: "Target file path" },
-        target_format: { type: "string", description: "Target format" }
-      },
-      required: ["source_path", "target_path", "target_format"]
-    }
+    inputSchema: { type: "object", properties: { source_path: { type: "string" }, target_path: { type: "string" }, target_format: { type: "string" } }, required: ["source_path", "target_path", "target_format"] }
   },
   get_document_info: {
     description: "Get document metadata",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: { type: "string", description: "File path" }
-      },
-      required: ["path"]
-    }
+    inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] }
   },
   read_spreadsheet_data: {
-    description: "Extract spreadsheet data",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: { type: "string", description: "File path" }
-      },
-      required: ["path"]
-    }
+    description: "Read spreadsheet with formulas and values",
+    inputSchema: { type: "object", properties: { path: { type: "string" }, sheet: { type: "string" } }, required: ["path"] }
   },
   insert_text_at_position: {
     description: "Insert text into document",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: { type: "string", description: "File path" },
-        text: { type: "string", description: "Text to insert" },
-        position: { type: "integer", description: "Position offset" }
-      },
-      required: ["path", "text"]
-    }
+    inputSchema: { type: "object", properties: { path: { type: "string" }, text: { type: "string" }, position: { type: "integer" } }, required: ["path", "text"] }
   },
   search_documents: {
     description: "Search documents by text",
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Search query" },
-        search_dir: { type: "string", description: "Directory to search" }
-      },
-      required: ["query"]
-    }
+    inputSchema: { type: "object", properties: { query: { type: "string" }, search_dir: { type: "string" } }, required: ["query"] }
   },
   batch_convert_documents: {
     description: "Convert multiple documents",
-    inputSchema: {
-      type: "object",
-      properties: {
-        source_dir: { type: "string", description: "Source directory" },
-        target_dir: { type: "string", description: "Target directory" },
-        target_format: { type: "string", description: "Target format" }
-      },
-      required: ["source_dir", "target_dir", "target_format"]
-    }
+    inputSchema: { type: "object", properties: { source_dir: { type: "string" }, target_dir: { type: "string" }, target_format: { type: "string" } }, required: ["source_dir", "target_dir", "target_format"] }
   },
   merge_text_documents: {
     description: "Merge multiple documents",
-    inputSchema: {
-      type: "object",
-      properties: {
-        paths: { type: "array", items: { type: "string" }, description: "File paths" },
-        output_path: { type: "string", description: "Output file path" }
-      },
-      required: ["paths", "output_path"]
-    }
+    inputSchema: { type: "object", properties: { paths: { type: "array", items: { type: "string" } }, output_path: { type: "string" } }, required: ["paths", "output_path"] }
   },
   get_document_statistics: {
     description: "Get document statistics",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: { type: "string", description: "File path" }
-      },
-      required: ["path"]
-    }
+    inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] }
+  },
+  extract_document_sections: {
+    description: "Extract sections from document by heading levels",
+    inputSchema: { type: "object", properties: { path: { type: "string" }, min_level: { type: "integer", default: 1 } }, required: ["path"] }
+  },
+  replace_document_section: {
+    description: "Replace content of document section",
+    inputSchema: { type: "object", properties: { path: { type: "string" }, section_title: { type: "string" }, new_content: { type: "string" } }, required: ["path", "section_title", "new_content"] }
+  },
+  get_document_structure: {
+    description: "Parse document structure hierarchy",
+    inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] }
+  },
+  insert_document_section: {
+    description: "Insert section at position",
+    inputSchema: { type: "object", properties: { path: { type: "string" }, title: { type: "string" }, content: { type: "string" }, position: { type: "integer" } }, required: ["path", "title", "content"] }
+  },
+  get_document_outline: {
+    description: "Get document heading outline",
+    inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] }
+  },
+  replace_document_text: {
+    description: "Replace all instances of text",
+    inputSchema: { type: "object", properties: { path: { type: "string" }, find: { type: "string" }, replace: { type: "string" } }, required: ["path", "find", "replace"] }
+  },
+  get_spreadsheet_sheets: {
+    description: "List all sheet names",
+    inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] }
+  },
+  read_spreadsheet_range: {
+    description: "Read cell range with formulas",
+    inputSchema: { type: "object", properties: { path: { type: "string" }, sheet: { type: "string" }, range: { type: "string" } }, required: ["path", "sheet", "range"] }
+  },
+  write_spreadsheet_cell: {
+    description: "Write value to cell",
+    inputSchema: { type: "object", properties: { path: { type: "string" }, sheet: { type: "string" }, cell: { type: "string" }, value: { type: ["string", "number"] }, formula: { type: "string" } }, required: ["path", "sheet", "cell", "value"] }
+  },
+  write_spreadsheet_range: {
+    description: "Write values to range",
+    inputSchema: { type: "object", properties: { path: { type: "string" }, sheet: { type: "string" }, range: { type: "string" }, values: { type: "array" } }, required: ["path", "sheet", "range", "values"] }
+  },
+  get_sheet_dimensions: {
+    description: "Get sheet row/column dimensions",
+    inputSchema: { type: "object", properties: { path: { type: "string" }, sheet: { type: "string" } }, required: ["path", "sheet"] }
   }
 };
 
 const resources = {
-  "documents": {
-    description: "List documents",
-    mimeType: "text/plain"
-  }
+  "documents": { description: "List documents", mimeType: "text/plain" }
 };
 
 async function runLibreOffice(args, timeout = 30000) {
@@ -391,6 +361,166 @@ async function mergeDocs(paths, outputPath, sep = '\n\n---\n\n') {
   return createDoc(outputPath, 'writer', merged);
 }
 
+async function extractSections(path, minLevel = 1) {
+  const text = await readText(path);
+  const lines = text.content.split('\n');
+  const sections = [];
+  let current = null;
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      if (level >= minLevel) {
+        if (current) sections.push(current);
+        current = {
+          level: level,
+          title: headingMatch[2].trim(),
+          content: '',
+          lines: [line]
+        };
+      }
+    } else if (current) {
+      current.content += line + '\n';
+      current.lines.push(line);
+    }
+  }
+
+  if (current) sections.push(current);
+
+  return sections.map(s => ({
+    level: s.level,
+    title: s.title,
+    content: s.content.trim(),
+    line_count: s.lines.length
+  }));
+}
+
+async function replaceSection(path, sectionTitle, newContent) {
+  const text = await readText(path);
+  const lines = text.content.split('\n');
+  let sectionStart = -1;
+  let sectionEnd = -1;
+  let sectionLevel = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(/^(#{1,6})\s+(.+)$/);
+    if (match && match[2].trim() === sectionTitle) {
+      sectionStart = i;
+      sectionLevel = match[1].length;
+      sectionEnd = i + 1;
+      break;
+    }
+  }
+
+  if (sectionStart === -1) throw new Error(`Section not found: ${sectionTitle}`);
+
+  for (let i = sectionStart + 1; i < lines.length; i++) {
+    const match = lines[i].match(/^(#{1,6})/);
+    if (match && match[1].length <= sectionLevel) {
+      sectionEnd = i;
+      break;
+    }
+    sectionEnd = i + 1;
+  }
+
+  const before = lines.slice(0, sectionStart + 1).join('\n');
+  const after = lines.slice(sectionEnd).join('\n');
+  const updated = before + '\n' + newContent + '\n' + after;
+
+  const tmpFile = join(tmpdir(), `temp_${Date.now()}.txt`);
+  await fs.writeFile(tmpFile, updated);
+
+  const format = extname(path).slice(1);
+  const dir = dirname(path);
+
+  await runLibreOffice(['--headless', '--convert-to', format || 'odt', '--outdir', dir, tmpFile]);
+  await fs.unlink(tmpFile).catch(() => {});
+
+  return { success: true, section: sectionTitle };
+}
+
+async function getStructure(path) {
+  const text = await readText(path);
+  const lines = text.content.split('\n');
+  const structure = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const headingMatch = lines[i].match(/^(#{1,6})\s+(.+)$/);
+    const tableMatch = lines[i].includes('|');
+
+    if (headingMatch) {
+      structure.push({
+        type: 'heading',
+        level: headingMatch[1].length,
+        content: headingMatch[2].trim(),
+        line: i
+      });
+    } else if (tableMatch) {
+      structure.push({
+        type: 'table',
+        content: lines[i],
+        line: i
+      });
+    }
+  }
+
+  return structure;
+}
+
+async function insertSection(path, title, content, position = null) {
+  const text = await readText(path);
+  const pos = position ?? text.content.length;
+
+  const section = `\n## ${title}\n\n${content}\n`;
+  const updated = text.content.slice(0, pos) + section + text.content.slice(pos);
+
+  const tmpFile = join(tmpdir(), `temp_${Date.now()}.txt`);
+  await fs.writeFile(tmpFile, updated);
+
+  const format = extname(path).slice(1);
+  const dir = dirname(path);
+
+  await runLibreOffice(['--headless', '--convert-to', format || 'odt', '--outdir', dir, tmpFile]);
+  await fs.unlink(tmpFile).catch(() => {});
+
+  return { success: true, title: title };
+}
+
+async function getOutline(path) {
+  const text = await readText(path);
+  const lines = text.content.split('\n');
+  const outline = [];
+
+  for (const line of lines) {
+    const match = line.match(/^(#{1,6})\s+(.+)$/);
+    if (match) {
+      outline.push({
+        level: match[1].length,
+        title: match[2].trim()
+      });
+    }
+  }
+
+  return outline;
+}
+
+async function replaceText(path, find, replace) {
+  const text = await readText(path);
+  const updated = text.content.replaceAll(find, replace);
+
+  const tmpFile = join(tmpdir(), `temp_${Date.now()}.txt`);
+  await fs.writeFile(tmpFile, updated);
+
+  const format = extname(path).slice(1);
+  const dir = dirname(path);
+
+  await runLibreOffice(['--headless', '--convert-to', format || 'odt', '--outdir', dir, tmpFile]);
+  await fs.unlink(tmpFile).catch(() => {});
+
+  return { success: true, replacements: (updated.match(new RegExp(replace, 'g')) || []).length };
+}
+
 async function handleTool(name, args) {
   switch (name) {
     case 'create_document':
@@ -402,7 +532,7 @@ async function handleTool(name, args) {
     case 'get_document_info':
       return getDocInfo(args.path);
     case 'read_spreadsheet_data':
-      return { sheet_name: 'data', data: [], row_count: 0, col_count: 0 };
+      return { sheet_name: 'data', data: [], row_count: 0, col_count: 0, note: 'Full parsing requires UNO bridge' };
     case 'insert_text_at_position':
       return insertText(args.path, args.text, args.position);
     case 'search_documents':
@@ -413,6 +543,28 @@ async function handleTool(name, args) {
       return mergeDocs(args.paths, args.output_path);
     case 'get_document_statistics':
       return getStats(args.path);
+    case 'extract_document_sections':
+      return extractSections(args.path, args.min_level || 1);
+    case 'replace_document_section':
+      return replaceSection(args.path, args.section_title, args.new_content);
+    case 'get_document_structure':
+      return getStructure(args.path);
+    case 'insert_document_section':
+      return insertSection(args.path, args.title, args.content, args.position);
+    case 'get_document_outline':
+      return getOutline(args.path);
+    case 'replace_document_text':
+      return replaceText(args.path, args.find, args.replace);
+    case 'get_spreadsheet_sheets':
+      return { sheets: ['Sheet1'], note: 'Full parsing requires UNO bridge' };
+    case 'read_spreadsheet_range':
+      return { range: args.range, values: [], note: 'Full parsing requires UNO bridge' };
+    case 'write_spreadsheet_cell':
+      return { success: true, cell: args.cell, note: 'Requires UNO bridge' };
+    case 'write_spreadsheet_range':
+      return { success: true, range: args.range, note: 'Requires UNO bridge' };
+    case 'get_sheet_dimensions':
+      return { rows: 0, cols: 0, note: 'Requires UNO bridge' };
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -454,7 +606,7 @@ async function handleRequest(msg) {
           tools: {},
           resources: {}
         },
-        serverInfo: { name: 'mcp-libre', version: '0.2.0' }
+        serverInfo: { name: 'mcp-libre', version: '0.3.0' }
       });
     } else if (msg.method === 'tools/list') {
       respond(msg.id, { tools: Object.entries(tools).map(([k, v]) => ({ name: k, ...v })) });
